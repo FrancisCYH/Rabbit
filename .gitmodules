@@ -1,0 +1,3 @@
+[submodule "vlfd-ffi"]
+	path = vlfd-ffi
+	url = https://github.com/0xtaruhi/vlfd-ffi
