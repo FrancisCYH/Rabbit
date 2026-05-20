@@ -18,13 +18,12 @@ SignalSourceRawComponent::SignalSourceRawComponent(QWidget *parent)
     : AbstractRawComponent(parent) {
   initPorts();
   setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-  elapsed_timer_.start();
 }
 
 SignalSourceRawComponent::~SignalSourceRawComponent() {}
 
 void SignalSourceRawComponent::reset() {
-  elapsed_timer_.restart();
+  cycle_counter_ = 0;
   update();
 }
 
@@ -35,6 +34,7 @@ uint64_t SignalSourceRawComponent::getWriteData() const {
     return 0;
   }
   bool output = computeOutput();
+  cycle_counter_++;
   return (uint64_t)(output ^ is_low_active_) << input_ports_[0].pin_index;
 }
 
@@ -47,33 +47,31 @@ bool SignalSourceRawComponent::computeOutput() const {
   case SignalMode::SquareWave: {
     int period_cycles = period_ms_; // stored directly in cycles
     if (period_cycles <= 0) return false;
-    qint64 elapsed_cycles = elapsed_timer_.elapsed() * frequency_ / 1000;
-    qint64 phase = elapsed_cycles % period_cycles;
+    qint64 phase = cycle_counter_ % period_cycles;
     return phase < (qint64)(period_cycles * duty_cycle_percent_ / 100);
   }
   case SignalMode::SinglePulse: {
-    qint64 elapsed_cycles = elapsed_timer_.elapsed() * frequency_ / 1000;
-    int delay_cycles = delay_ms_;    // stored directly in cycles
+    int delay_cycles = delay_ms_;       // stored directly in cycles
     int width_cycles = pulse_width_ms_; // stored directly in cycles
-    return (elapsed_cycles >= delay_cycles &&
-            elapsed_cycles < (qint64)(delay_cycles + width_cycles));
+    return (cycle_counter_ >= delay_cycles &&
+            cycle_counter_ < (qint64)(delay_cycles + width_cycles));
   }
   case SignalMode::Sequence: {
     if (sequence_.isEmpty()) return false;
-    qint64 elapsed_cycles = elapsed_timer_.elapsed() * frequency_ / 1000;
+    qint64 current_cycle = cycle_counter_;
 
     // Loop handling: total time stored directly in cycles
     if (sequence_loop_ && sequence_.size() > 1) {
       int total_period_cycles = sequence_.last().time_ms;
       if (total_period_cycles > 0) {
-        elapsed_cycles = elapsed_cycles % total_period_cycles;
+        current_cycle = current_cycle % total_period_cycles;
       }
     }
 
-    // Find the last entry whose time (in cycles) <= elapsed_cycles
+    // Find the last entry whose time (in cycles) <= current_cycle
     bool output = sequence_hold_ ? false : sequence_.last().value;
     for (const auto &entry : sequence_) {
-      if (entry.time_ms <= elapsed_cycles) {
+      if (entry.time_ms <= current_cycle) {
         output = entry.value;
       } else {
         break;
@@ -173,7 +171,7 @@ void SignalSourceRawComponent::mousePressEvent(QMouseEvent *event) {
       mode_ = SignalMode::ConstantLow;
     }
     if (mode_ == SignalMode::Sequence) {
-      elapsed_timer_.restart();
+      cycle_counter_ = 0;
     }
     update();
   }

@@ -195,6 +195,10 @@ void WaveFormController::writeToVcdFile() {
     }
     time++;
   }
+  // Force write final timestamp so GTKWave shows full range to stop moment
+  if (time > 0) {
+    vcd_file_->write("#" + QString::number(time - 1).toUtf8() + "\n");
+  }
   read_data_file_->close();
   write_data_file_->close();
   vcd_file_->close();

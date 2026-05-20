@@ -107,7 +107,7 @@ private:
   bool sequence_loop_ = false;
   bool sequence_hold_ = true;
 
-  mutable QElapsedTimer elapsed_timer_;
+  mutable int cycle_counter_ = 0;
 };
 
 /// @brief SignalSourceSettingsDialog class

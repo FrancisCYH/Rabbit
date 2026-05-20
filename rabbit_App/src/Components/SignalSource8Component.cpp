@@ -18,13 +18,12 @@ SignalSource8RawComponent::SignalSource8RawComponent(QWidget *parent)
     : AbstractRawComponent(parent) {
   initPorts();
   setSizePolicy(QSizePolicy::Expanding, QSizePolicy::Expanding);
-  elapsed_timer_.start();
 }
 
 SignalSource8RawComponent::~SignalSource8RawComponent() {}
 
 void SignalSource8RawComponent::reset() {
-  elapsed_timer_.restart();
+  cycle_counter_ = 0;
   update();
 }
 
@@ -39,25 +38,26 @@ uint64_t SignalSource8RawComponent::getWriteData() const {
       data |= (uint64_t)(val ^ is_low_active_) << input_ports_[i].pin_index;
     }
   }
+  cycle_counter_++;
   return data;
 }
 
 uint8_t SignalSource8RawComponent::computeOutput() const {
   if (sequence_.isEmpty()) return 0x00;
-  qint64 elapsed_cycles = elapsed_timer_.elapsed() * frequency_ / 1000;
+  qint64 current_cycle = cycle_counter_;
 
   // Loop handling: time_ms stores cycles directly
   if (sequence_loop_ && sequence_.size() > 1) {
     int total_period_cycles = sequence_.last().time_ms;
     if (total_period_cycles > 0) {
-      elapsed_cycles = elapsed_cycles % total_period_cycles;
+      current_cycle = current_cycle % total_period_cycles;
     }
   }
 
-  // Find the last entry whose time (in cycles) <= elapsed_cycles
+  // Find the last entry whose time (in cycles) <= current_cycle
   uint8_t output = sequence_hold_ ? 0x00 : sequence_.last().values;
   for (const auto &entry : sequence_) {
-    if (entry.time_ms <= elapsed_cycles) {
+    if (entry.time_ms <= current_cycle) {
       output = entry.values;
     } else {
       break;
@@ -139,7 +139,7 @@ void SignalSource8RawComponent::paintEvent(QPaintEvent *event) {
 
 void SignalSource8RawComponent::mousePressEvent(QMouseEvent *event) {
   if (event->button() == Qt::LeftButton) {
-    elapsed_timer_.restart();
+    cycle_counter_ = 0;
     update();
   }
 }
